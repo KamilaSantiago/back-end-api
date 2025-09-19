@@ -1,7 +1,7 @@
 {
-  "name": "nome-sua-api",
+  "name": "back-and-api",
   "version": "1.0.0",
-  "description": "descrição sua API",
+  "description": "rolex agitado de london, meus fãs são tipo fãs da taylor, virei um artista internacional",
   "main": "server.js",
   "scripts": {},
   "keywords": [],
@@ -9,6 +9,8 @@
   "license": "ISC",
   "type": "module",
   "dependencies": {
-    "express": "^5.1.0"
+    "dotenv": "^17.2.2",
+    "express": "^5.1.0",
+    "pg": "^8.16.3"
   }
 }
