@@ -180,6 +180,169 @@ app.put("/questoes/:id", async (req, res) => {
   }
 });
 
+/* =================== ROTAS MAQUIAGENS =================== */
+
+// GET /maquiagens -> lista todas as maquiagens ativas (padrão)
+app.get("/maquiagens", async (req, res) => {
+  console.log("Rota GET /maquiagens solicitada");
+  try {
+    const db = conectarBD();
+    const resultado = await db.query("SELECT * FROM maquiagens WHERE ativo = TRUE ORDER BY id_maquiagem DESC");
+    res.status(200).json(resultado.rows);
+  } catch (e) {
+    console.error("Erro ao buscar maquiagens:", e);
+    res.status(500).json({ erro: "Erro interno do servidor" });
+  }
+});
+
+// GET /maquiagens/:id -> busca por id
+app.get("/maquiagens/:id", async (req, res) => {
+  console.log("Rota GET /maquiagens/:id solicitada");
+  try {
+    const { id } = req.params;
+    const db = conectarBD();
+    const resultado = await db.query("SELECT * FROM maquiagens WHERE id_maquiagem = $1", [id]);
+    if (resultado.rows.length === 0) return res.status(404).json({ mensagem: "Maquiagem não encontrada" });
+    res.status(200).json(resultado.rows[0]);
+  } catch (e) {
+    console.error("Erro ao buscar maquiagem:", e);
+    res.status(500).json({ erro: "Erro interno do servidor" });
+  }
+});
+
+// POST /maquiagens -> cria nova maquiagem
+app.post("/maquiagens", async (req, res) => {
+  console.log("Rota POST /maquiagens solicitada");
+  try {
+    const {
+      nome,
+      tipo,
+      marca,
+      cor,
+      tom,
+      preco,
+      descricao,
+      estoque,
+      data_lancamento
+    } = req.body;
+
+    // validação básica
+    if (!nome || !tipo || !marca || preco === undefined) {
+      return res.status(400).json({
+        erro: "Dados inválidos",
+        mensagem: "Os campos nome, tipo, marca e preco são obrigatórios."
+      });
+    }
+
+    const db = conectarBD();
+    const consulta = `
+      INSERT INTO maquiagens
+      (nome, tipo, marca, cor, tom, preco, descricao, estoque, data_lancamento)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+      RETURNING *;
+    `;
+    const valores = [
+      nome,
+      tipo,
+      marca,
+      cor || null,
+      tom || null,
+      preco,
+      descricao || null,
+      estoque ?? 0,
+      data_lancamento || null
+    ];
+
+    const resultado = await db.query(consulta, valores);
+    res.status(201).json({ mensagem: "Maquiagem criada com sucesso!"});
+  } catch (e) {
+    console.error("Erro ao criar maquiagem:", e);
+    res.status(500).json({ erro: "Erro interno do servidor" });
+  }
+});
+
+// PUT /maquiagens/:id -> atualiza maquiagem existente (mantém campos quando omitidos)
+app.put("/maquiagens/:id", async (req, res) => {
+  console.log("Rota PUT /maquiagens/:id solicitada");
+  try {
+    const { id } = req.params;
+    const db = conectarBD();
+
+    // verifica existência
+    const atualQuery = await db.query("SELECT * FROM maquiagens WHERE id_maquiagem = $1", [id]);
+    if (atualQuery.rows.length === 0) return res.status(404).json({ mensagem: "Maquiagem não encontrada" });
+
+    const atual = atualQuery.rows[0];
+    const {
+      nome,
+      tipo,
+      marca,
+      cor,
+      tom,
+      preco,
+      descricao,
+      estoque,
+      ativo,
+      data_lancamento
+    } = req.body;
+
+    const consulta = `
+      UPDATE maquiagens SET
+        nome = $1,
+        tipo = $2,
+        marca = $3,
+        cor = $4,
+        tom = $5,
+        preco = $6,
+        descricao = $7,
+        estoque = $8,
+        ativo = COALESCE($9, ativo),
+        data_lancamento = $10
+      WHERE id_maquiagem = $11
+      RETURNING *;
+    `;
+
+    const valores = [
+      nome || atual.nome,
+      tipo || atual.tipo,
+      marca || atual.marca,
+      cor ?? atual.cor,
+      tom ?? atual.tom,
+      preco ?? atual.preco,
+      descricao ?? atual.descricao,
+      estoque ?? atual.estoque,
+      ativo === undefined ? null : ativo, // se undefined, COALESCE manterá valor atual
+      data_lancamento || atual.data_lancamento,
+      id
+    ];
+
+    const resultado = await db.query(consulta, valores);
+    res.status(200).json({ mensagem: "Maquiagem atualizada com sucesso!" });
+  } catch (e) {
+    console.error("Erro ao atualizar maquiagem:", e);
+    res.status(500).json({ erro: "Erro interno do servidor" });
+  }
+});
+
+// DELETE /maquiagens/:id -> soft-delete: desativa o produto
+app.delete("/maquiagens/:id", async (req, res) => {
+  console.log("Rota DELETE /maquiagens/:id solicitada");
+  try {
+    const { id } = req.params;
+    const db = conectarBD();
+
+    // Verifica se existe
+    const busca = await db.query("SELECT * FROM maquiagens WHERE id_maquiagem = $1", [id]);
+    if (busca.rows.length === 0) return res.status(404).json({ mensagem: "Maquiagem não encontrada" });
+
+    // Soft delete: ativa = false
+    await db.query("UPDATE maquiagens SET ativo = FALSE WHERE id_maquiagem = $1", [id]);
+    res.status(200).json({ mensagem: "Maquiagem desativada com sucesso!" });
+  } catch (e) {
+    console.error("Erro ao desativar maquiagem:", e);
+    res.status(500).json({ erro: "Erro interno do servidor" });
+  }
+});
 
 
 app.listen(port, () => {            // Um socket para "escutar" as requisições
